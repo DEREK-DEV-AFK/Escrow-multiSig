@@ -17,12 +17,12 @@ contract Escrow is accessRegistry {
     uint public value;
     EscrowState public state;
     uint8 immutable fundReleaseThreshold;
-    uint public voteCount;
+    uint public fundReleaseVoteCount;
 
     constructor(address payable _buyer, address payable _seller, uint8 _fundReleaseThreshold,  address _arbitrator, address[] memory _subPartners) accessRegistry(_seller) payable {
         
-        require(msg.value > 0,'invalid value provided');
-        require(_fundReleaseThreshold > 0 && _fundReleaseThreshold <= 100,"invalid threshold value");
+        assert(msg.value > 0);
+        assert(_fundReleaseThreshold > 0 && _fundReleaseThreshold <= 100);
         
         buyer = _buyer;
         arbitrator = _arbitrator;
@@ -63,7 +63,7 @@ contract Escrow is accessRegistry {
     /**
      * To receive eth directly into contract
      */
-    receive() external payable { 
+    receive() external payable inState(EscrowState.Created){ 
         value += msg.value;
         emit Deposit(msg.sender, msg.value, address(this).balance);
     }
@@ -85,7 +85,7 @@ contract Escrow is accessRegistry {
 
     
         isPartner[msg.sender].hasVoted = true;
-        voteCount++;
+        fundReleaseVoteCount++;
 
         emit InitiateRelease(msg.sender);
     }
@@ -94,7 +94,7 @@ contract Escrow is accessRegistry {
         require(!isPartner[msg.sender].hasVoted,"Already voted");
 
         isPartner[msg.sender].hasVoted = true;
-        voteCount++;
+        fundReleaseVoteCount++;
 
         emit ApprovedRelease(msg.sender);
     }
@@ -103,16 +103,15 @@ contract Escrow is accessRegistry {
         require(isPartner[msg.sender].hasVoted,"haven't voted");
 
         isPartner[msg.sender].hasVoted = false;
-        voteCount--;
+        fundReleaseVoteCount--;
 
         emit DisapprovedRelease(msg.sender);
     }
 
     function hasPassedThresold() public view returns(bool) {
-        return (voteCount * 100) / partners.length >= fundReleaseThreshold;
+        return (fundReleaseVoteCount * 100) / partners.length >= fundReleaseThreshold;
 
         // V% = actualValue / TotalValue * 100
-
     }
 
     function releasePayment() public onlyPartners inState(EscrowState.onRelease) {
